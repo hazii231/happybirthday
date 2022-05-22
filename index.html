@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Happy birthday to yjc.
+
+    </title>
+
+<audio autoplay="autoplay" controls="controls"loop="loop" preload="auto"
+
+            src="p/123.mp3">
+
+     
+
+</audio>
+    <link rel="stylesheet" href="./css/zhu.css">
+    <style type="text/css">
+        * {-moz-user-select:   none; }
+        body
+        {
+            -moz-user-select:   none; 
+            cursor:url(res/3dgarro.cur),auto;  
+            border-style: none;   
+        }
+        .bk
+        { 
+            background-image: url(res/woodBoard.jpg);
+            background-repeat: repeat;
+            border-style: none;
+        }
+        .block
+        { 
+            cursor:url(res/3dgnwse.cur),auto;
+        }
+        
+    </style>
+    
+    <!-- <script src="Hammer/hammer.js"></script> -->
+    <script src="./js/Hammer/hammer.js"></script>
+    <!-- <script src="js/regEx.js"></script> -->
+    <script src="./js/regEx.js"></script>
+    <!-- <script src="js/newBlock.js"></script> -->
+    <script src="./js/newBlock.js"></script>
+    <!-- <script src="js/blockFuncs.js"></script> -->
+    <script src="./js/blockFuncs.js"></script>
+    <!-- <script src="js/successEffect.js"></script> -->
+    <script src="./js/successEffect.js"></script>
+    <script type="text/javascript">
+    /*
+    wwwtiger 
+    EMail: wang_zhaoyan2000@163.com
+    BLOG: http://blog.csdn.net/firefight/
+    
+    Beijing
+    P.R.China
+    
+    Test on: CHROME17 FF12 IE9 SAFARI5
+    
+    Usage: 	Grab and drag image by mouse left button. 
+        Double-click mouse left button to rotate the image.
+    
+    ��������BLOCK����ÿ��BLOCK����һ��SVG PATH
+    ����REGION����ÿ��REGION����һ��BLOCK�б�����ʼֻ��һ��BLOCK
+    ʹ��HAMMERʵ����SVG PATH�ϵ�DRAGDROP�����е��϶�����ת����REGION����
+    ��DROPʱ�ж�REGION�Ƿ��ܹ��ϲ�������ϲ���������һ��REGION��ȫ��BLOCK�ƶ�������һ��REGION��
+    ��ͼ�����ʱ����ÿһ��BLOCK������SVG PATH��ʹ���������ʽ����PATH�ַ�����������CANVAS CLIP��ʾͼ��
+    
+    2012-5-7 	����
+    2012-5-14	���IE9��ת���⣬�޸�˫��λ�ã������ж��Ƿ����offsetXY����������ڣ���ʹ��layerXY
+            ������ͼ�����쵽�̶���С��ʾ��Ŀǰ��400��400��
+            ������������ͺͰ汾�жϺ���������ȱʡ����������Ϊmp3�����������������Ӵ�����
+            
+    ISSUE:
+        �������ƶ��豸�϶�û�гɹ���ʾ
+    */
+    
+    var Sys = {};
+    var background, canvas, ctx, boardCtx, img;    
+    var svgRoot, pathGroup=null;
+    var lastX = 0, lastY = 0;
+    var mergeSound, splatSound, winSound;
+    
+    //����SVG PATH�ַ�����ʼ������
+    function initCanvas()
+    {
+        // Create an image element
+        img = new Image();     
+        
+        // When the image is loaded, draw it
+        img.onload = function () 
+        {
+            startGame();
+        }
+        
+        // Specify the src to load the image
+        img.src = "./p/pt.png";	
+    }
+    
+    function randomSpread()
+    {
+        for(var i=regions.length-1; i>=0; i--)
+        {
+            var region = regions[i];
+            
+            //Random rotate and spread images
+            var cx = Math.random() * innerWidth / 4; 
+            var cy = Math.random() * innerHeight / 4; 
+            var rotateFlag = parseInt( Math.random() * 10 ) % 4;
+            var rx = region.blocks[0].col * colUnit + colUnit / 2;
+            var ry = region.blocks[0].row * rowUnit + rowUnit / 2;
+            
+            transformRegion(region, cx, cy, rotateFlag, rx, ry);
+        }
+    }			
+                
+    function getRegionIndex(currRegion)
+    {
+        var index = -1;
+        for(var i=regions.length-1; i>=0; i--)
+        {
+            if(regions[i] === currRegion)
+                return i;
+        }
+        
+        return index;
+    }
+                
+    //����REGION��ʾ����ͼƬ
+    function updateAllBlocks()
+    {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);   
+            
+        for(var i=0; i<regions.length; i++) //��˳����أ����ܸĵ���
+        {
+            var region = regions[i];
+            
+            for(var j=region.blocks.length-1; j>=0; j--)
+            {
+                var block = region.blocks[j];
+                
+                if(i==(regions.length-1))//��ʾ��ǰREGION�߿�
+                    drawCanvasByPathStr(block.pathObj, 1); 
+                else   
+                    drawCanvasByPathStr(block.pathObj, 0);
+                pathGroup.removeChild(block.pathObj);
+                pathGroup.appendChild(block.pathObj);
+            }
+        }  
+    }
+    
+    //ʹ��SVG PATH�ַ�����CANVAS CLIP��ʾͼ��
+    function drawCanvasByPathStr(pathObj, highlight)
+    {
+        var pathStr = pathObj.getAttributeNS(null, "d");
+        var matrix = pathObj.getCTM();
+    
+        var newStr = pathStr.replace(reg, ' ');	
+        var pathCmd = execReg(mainReg, newStr);  
+        
+        ctx.save();  
+        
+        if(matrix != null)                 
+                ctx.setTransform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+        
+        // Create a shape, of some sort
+        ctx.beginPath();
+        
+        //Begin path by path str
+        for(var i=0; i<pathCmd.length; i++) //��˳����أ����ܸĵ���
+        {
+            var op = execReg(numReg, pathCmd[i]);
+        
+            if((pathCmd[i][0] == 'M')&& (op.length == 2))
+            {     
+                ctx.moveTo(op[0], op[1]);  
+            }
+            else if( (pathCmd[i][0] == 'L')&& (op.length == 2))
+            {
+                ctx.lineTo(op[0], op[1]);  
+            }
+            else if((pathCmd[i][0] == 'Q') && (op.length == 4))
+            {
+                ctx.quadraticCurveTo(op[0], op[1], op[2], op[3]);  
+            }
+            else if((pathCmd[i][0] == 'C') && (op.length == 6))
+            {
+                ctx.bezierCurveTo(op[0], op[1], op[2], op[3], op[4], op[5]);  
+            }
+            else if(pathCmd[i][0] == 'Z')
+            {
+                ctx.closePath();  
+                break;
+            }
+        }
+            
+        // Clip to the current path
+        ctx.clip();
+        //ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, imageWidth, imageHeight);
+        
+        //ctx.globalCompositeOperation = "xor";
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "white";
+        if(highlight)
+        {
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = "black";
+        }
+        ctx.stroke();
+        
+        // Undo the clipping
+        ctx.restore();
+    }
+    
+    function matrixToStr(matrix)
+    {
+        var transformStr = "matrix(" + matrix.a + "," + matrix.b + "," + matrix.c + "," 
+                    + matrix.d + "," + matrix.e + "," + matrix.f + ")";
+        return transformStr;
+    }
+    
+    function updateStatusText(id, str)
+    {
+        //var status = document.getElementById(id);   
+        //status.firstChild.data = str;
+    }
+    
+    //ͨ��SVG·������õ�BLOCK
+    function getBlockByPath(pathObj)
+    {
+        if(pathObj == null)
+            return null;
+            
+        for(var i=blocks.length-1; i>=0; i--)
+        {
+            var block = blocks[i];
+            if(block.pathObj === pathObj)
+                return block;
+        }
+        return null;
+    }
+    
+    //ͨ��BLOCK�õ�REGION
+    function getRegionByBlock(block)
+    {
+        if(block == null)
+            return null;
+            
+        for(var i=regions.length-1; i>=0; i--)
+        {
+            var region = regions[i];
+            if(region.hasBlock(block))
+                return region;
+        }
+        return null;
+    }
+    
+    function highlightRegion(currRegion)
+    {
+        if(currRegion == null)
+            return;
+        
+        if(currRegion!=null) //����ǰѡ�е�������б���ɾ����Ȼ�����ӵ��б���󣬱�֤�˵�ǰѡ����������ǰ�����ʾ����������REGION����ʾ˳�򲻱䡣
+        {
+            var index = getRegionIndex(currRegion);
+            if(index!=-1)
+            {
+                regions.splice(index,1);
+                regions.push(currRegion);
+            }
+        }
+        
+        updateAllBlocks();
+        return null;
+    }
+    
+    function addHammer()
+    {
+        var hammer = new Hammer(svgRoot);
+        hammer.prevent_default = true;
+        hammer.drag_min_distance = 20;
+        //hammer.css_hacks = false;
+        
+        //���մ������¼��������϶�����������ֺͱ任
+        //Now, on every gesture that is performed on the container element, you'll receive a callback object with information on the gesture.
+        hammer.ondragstart = function(ev) 
+        {	
+            lastX = 0;
+            lastY = 0;
+            updateStatusText("moveStatus", "drag start");
+        };      
+        hammer.ondrag = function(ev) 
+        {	
+            if(currPath == null)
+                return;
+            
+            var offsetX = ev.distanceX - lastX;
+            var offsetY = ev.distanceY - lastY;
+            lastX = ev.distanceX;
+            lastY = ev.distanceY;
+            
+            //��������϶��ƶ�SVG PATH
+            var block = getBlockByPath(currPath);
+            var region = getRegionByBlock(block);
+            translateRegion(region, offsetX, offsetY);
+            highlightRegion(region);
+        };
+        
+        hammer.ondragend = function(ev) 
+        {	
+            lastX = 0;
+            lastY = 0;
+            updateStatusText("moveStatus", "drag end " + ev.distance + "," + ev.direction); 
+            
+            if(currPath == null)
+                return;
+                
+            var block = getBlockByPath(currPath);
+            var region = getRegionByBlock(block);
+                    
+            if(checkMerge(region))
+            {
+                highlightRegion(region);
+                //if(mergeSound!=null)
+                //	mergeSound.play();
+                playSound(mergeSound, 0, 0.8);
+                if(region.blocks.length == imageRow * imageCol)
+                {
+                    //alert('You win!!!');
+                    playSound(winSound, 0, 0.8);
+                    createFog();
+                }
+            }
+            else
+                playSound(splatSound, 0, 0.8);
+                
+            //ondragend����Ҫȡ���϶�·������ֹ����ڻ�����mouseup�����
+            currPath = null;
+            
+        };
+        
+        hammer.ontap = function(ev) 
+        { 	
+            var targetElement = ev.originalEvent.target;
+            var eid = targetElement.getAttribute("id");
+            //alert(eid.substr(0, 4));
+            
+            if ( eid.substr(0, 4) == PATH_ID )
+            {
+                var block = getBlockByPath(targetElement);
+                var region = getRegionByBlock(block);
+                highlightRegion(region);
+            }
+        };
+        
+        hammer.ondoubletap = function(ev) 
+        { 	//�����������תSVG PATH
+            var targetElement = ev.originalEvent.target;
+            var eid = targetElement.getAttribute("id");
+            //alert(eid.substr(0, 4));
+            
+            if ( eid.substr(0, 4) == PATH_ID )
+            {
+                var cx, cy;
+                /*
+                if( Sys.ie == null) //For FireFox/Chrome/Safari
+                {
+                    cx = ev.originalEvent.layerX;
+                    cy = ev.originalEvent.layerY;
+                }	
+                else //For IE9
+                {
+                    cx = ev.originalEvent.pageX - canvas.offsetLeft;
+                    cy = ev.originalEvent.pageY - canvas.offsetTop;
+                }
+                */
+                
+                var offsets = findPos(canvas);
+                cx = ev.originalEvent.pageX - offsets.left;
+                cy = ev.originalEvent.pageY - offsets.top;
+                    
+                var block = getBlockByPath(targetElement);
+                var region = getRegionByBlock(block);
+                
+                transformRegion(region, 0, 0, 1, cx, cy);
+                highlightRegion(region);
+            }
+            //alert(ev.originalEvent.layerX + ',' + ev.originalEvent.layerY);
+        };
+        
+        hammer.onhold = function(ev) { };
+        hammer.ontransformstart = function(ev) { };
+        hammer.ontransform = function(ev) { };
+        hammer.ontransformend = function(ev) { };
+    }
+    
+    //REGION��ƽ��
+    function translateRegion(region, cx, cy)
+    {
+        if(region == null)
+            return;
+        
+        for(var i=region.blocks.length-1; i>=0; i--)
+        {
+            var block = region.blocks[i];
+            
+            //Update tranform matrix
+            var transMatrix = block.pathObj.getCTM();
+            var newMatrix = transMatrix; 
+            
+            newMatrix.e = transMatrix.e + cx ;
+            newMatrix.f = transMatrix.f + cy ;
+            
+            var transformStr = matrixToStr(newMatrix);
+            
+            block.pathObj.setAttributeNS(null, "transform", transformStr);
+        }
+    }
+    
+    
+    //REGIONƽ�ƣ���ת�ı任����
+    function transformRegion(region, cx, cy, rotateFlag, rx, ry)
+    {
+        if(region == null)
+            return;
+        
+        region.rotateFlag = (region.rotateFlag + rotateFlag) % 4; 
+        for(var i=region.blocks.length-1; i>=0; i--)
+        {
+            var block = region.blocks[i];
+            
+            var sin = 1, cos = 0;
+            if(rotateFlag == 1) //90
+            {
+                sin = 1;
+                cos = 0;
+            }
+            else if(rotateFlag == 2) //180
+            {
+                sin = 0;
+                cos = -1;
+            }
+            else if(rotateFlag == 3) //270
+            {
+                sin = -1;
+                cos = 0;
+            }
+            else //default 0
+            {
+                sin = 0;
+                cos = 1;
+            }
+            
+            //Update tranform matrix
+            var transMatrix = block.pathObj.getCTM();
+            
+            var newMatrix = svgRoot.createSVGMatrix();
+            newMatrix.a = transMatrix.a * cos - transMatrix.b * sin;
+            newMatrix.b = transMatrix.a * sin + transMatrix.b * cos;
+            newMatrix.c = transMatrix.c * cos - transMatrix.d * sin;
+            newMatrix.d = transMatrix.c * sin + transMatrix.d * cos;
+            newMatrix.e = transMatrix.e * cos - transMatrix.f * sin - rx * cos + ry * sin + rx + cx ;
+            newMatrix.f = transMatrix.e * sin + transMatrix.f * cos - rx * sin - ry * cos + ry + cy ;
+            
+            var transformStr = matrixToStr(newMatrix);
+                
+            block.pathObj.setAttributeNS(null, "transform", transformStr);
+        }
+    }
+    
+    //����Ƿ�ϲ�
+    function checkMerge(region)
+    {
+        if(region == null)
+            return;
+        
+        var mergeFlag = false;
+            
+        for(var i=regions.length-1; i>=0; i--)
+        {
+            var newRegion = regions[i];
+            if(newRegion === region)
+                continue;
+            
+            if(region.rotateFlag != newRegion.rotateFlag)
+            {
+                //alert('not same angle');
+                continue;
+            }
+            
+            if(region.isNeighbour(newRegion))
+            {
+                //alert('neighbour!');
+                var transMatrix1 = region.blocks[0].pathObj.getCTM();
+                var transMatrix2 = newRegion.blocks[0].pathObj.getCTM();
+                var cx = transMatrix1.e - transMatrix2.e;
+                var cy = transMatrix1.f - transMatrix2.f;
+                
+                //alert(cx + "," + cy);
+                if( (cx*cx + cy*cy) < (MIN_MERGE_DISTANCE * MIN_MERGE_DISTANCE) ) 
+                {
+                    //alert('merge');
+                    region.mergeRegion(newRegion);
+                    mergeFlag = true;
+                }
+            }
+        }
+        
+        return mergeFlag;
+    }
+    
+    //��SVG PATH�����ĵ�
+    function createPathByRegionList()
+    {
+        if(pathGroup != null)
+            svgRoot.removeChild(pathGroup);
+        
+        pathGroup = document.createElementNS(svgNS, 'g');   
+            pathGroup.setAttribute('id', 'pathGroup');   
+            svgRoot.appendChild(pathGroup); 
+            
+        for(var i = regions.length -1; i>=0; i--)
+        {
+            var region = regions[i];
+            if(region == null)
+                continue;
+            
+            for(var j=region.blocks.length-1; j>=0; j--)
+            {
+                var block = region.blocks[j];
+                pathGroup.appendChild(block.pathObj);
+            }
+        }
+    }
+    
+    function restartGame()
+    {
+        if(confirm("Do you want restart game?"))
+        {
+            clearFog();
+            startGame();
+        }
+    }
+    
+    function setLevel()
+    {
+        if(document.getElementById("easyLevel").checked)
+        {
+            imageRow = 3;
+            imageCol = 3;
+        }
+        else if(document.getElementById("middleLevel").checked)
+        {
+            imageRow = 4;
+            imageCol = 4;
+        }
+        else if(document.getElementById("advanceLevel").checked)
+        {
+            imageRow = 5;
+            imageCol = 5;
+        }
+    }
+    
+    function startGame()
+    {
+        blocks=[];
+        regions=[];
+        
+        //Set game level
+        setLevel();
+        
+        //Create path objects
+        roundSize();
+        createBlockList();
+        createRegionList();
+        
+        createPathByRegionList();
+        randomSpread();
+        updateAllBlocks();
+    }
+    
+    var boardFonts = ["normal lighter 25px cursive","normal lighter 20px cursive","normal lighter 10px cursive"];
+    function showBoard(text, fontIndex, color, cx, cy)
+    {
+        boardCtx.font = boardFonts[fontIndex];
+        boardCtx.fillStyle = color;
+        boardCtx.fillText(text, cx, cy);
+    }
+    
+    function loadSound()
+    {       
+        var soundType = "mp3"; //For IE, Chrome and Safari      
+        if( (Sys.firefox) || (Sys.opera) )
+            soundType = "ogg";
+        
+        //Create and load sounds 
+        try
+        {
+            mergeSound = new Audio("res/sounds/points." + soundType);
+            splatSound = new Audio("res/sounds/splat." + soundType);
+            winSound = new Audio("res/sounds/winmusic." + soundType);
+        }
+        catch(err)
+        {
+            var txt="There was an error on this page.\n\n";
+            txt+="Load sound failed. Error description: " + err.description + "\n\n";
+            txt+="If your browser is SAFARI, please install QUICKTIME.\n\n";
+            txt+="Click OK to continue.\n\n";
+            alert(txt);
+        }
+    }
+    
+    var SYS_MUTE = 0;
+    
+    function playSound(sound, loop, volume)
+    {
+        if(SYS_MUTE)
+            return;
+            
+        try{
+            sound.loop = loop;
+            sound.volume = volume;
+            
+            try{
+                sound.currentTime = 0;
+            }catch(err){}
+            
+            sound.play();
+        }
+        catch(err){}
+    }
+    
+    function createFog()
+    {
+        //Hide puzzle
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        //Show success animate
+        var cx = 300;
+        var cy = 10;
+        var w = 430;
+        var h = 600;
+        
+        showBoard("yjc生日快乐！", 0, '#ff8800', 50, 550);
+        showTipsOnBoard();
+        boardCtx.drawImage(img, 0, 0, img.width, img.height, cx, cy,  w, h);
+    
+        ps = new ParticleSystem();
+        ps.init(boardCtx, 20, 0, 0, 600, 60, cx, cy, w, h);
+        animate=setInterval(function(){
+                        ps.update(); 
+                        ps.render();
+                        },  10);
+    }
+    
+    function clearFog()
+    {
+        if(animate!=null)
+        {
+            clearInterval(animate);
+            ps = null;
+        }
+        
+        boardCtx.clearRect(0, 0, canvas.width, canvas.height);
+        showTipsOnBoard();
+    }
+    
+    function showTipsOnBoard()
+    {
+        // showBoard("Jigsaw Puzzle: a HTML5 demo for SVG&CANVAS", 0, '#ff8800', 10, 30);
+        // showBoard("Drag to move; Double-click to rotate", 1, '#A88800', 10, 60);
+        // showBoard("Arthur: wang_zhaoyan2000@163.com", 2, '#A88800', 10, 80);
+    }
+    
+    function checkBrowserType()
+    {
+            var ua = navigator.userAgent.toLowerCase();
+            var s;
+            (s = ua.match(/msie ([\d.]+)/)) ? Sys.ie = s[1] :
+            (s = ua.match(/firefox\/([\d.]+)/)) ? Sys.firefox = s[1] :
+            (s = ua.match(/chrome\/([\d.]+)/)) ? Sys.chrome = s[1] :
+            (s = ua.match(/opera.([\d.]+)/)) ? Sys.opera = s[1] :
+            (s = ua.match(/version\/([\d.]+).*safari/)) ? Sys.safari = s[1] : 0;
+    
+            //���½��в���
+            //if (Sys.ie) alert('IE: ' + Sys.ie);
+            //if (Sys.firefox) alert('Firefox: ' + Sys.firefox);
+            //if (Sys.chrome) alert('Chrome: ' + Sys.chrome);
+            //if (Sys.opera) alert('Opera: ' + Sys.opera);
+            //if (Sys.safari) alert('Safari: ' + Sys.safari);
+    }
+    
+    function findPos(obj) {
+        var curleft = curtop = 0;
+        if (obj.offsetParent) {
+            do {
+                curleft += obj.offsetLeft;
+                curtop += obj.offsetTop;
+            } while (obj = obj.offsetParent);
+        }
+        return {left:curleft,top:curtop};
+    }
+          
+    window.onload = function() 
+    {
+        checkBrowserType();
+        
+        // Grab the Canvas and Drawing Context
+        canvas = document.getElementById('container');
+        ctx = canvas.getContext('2d');
+        boardCtx = document.getElementById('board').getContext('2d');
+        
+        //ctx.globalCompositeOperation = "xor";
+        //ctx.shadowOffsetX = 5;
+        //ctx.shadowOffsetY = 5;
+        //ctx.shadowBlur = 5;
+        
+        background = document.getElementById('background');
+        svgRoot = document.getElementById('svgRoot');
+        pathGroup = document.getElementById('pathGroup');	
+        document.ondragstart=function (){return false;}; //����FireFox�е�ȱʡͼƬ�϶�
+        
+        //��ʼ��
+        loadSound();
+        initCanvas();
+        
+        //�����϶�����
+        addHammer();
+        
+        //��ʾ��ʾ
+        showTipsOnBoard();
+        
+        //var offsets = findPos(canvas);
+        //alert(offsets.left + ", " + offsets.top);
+    }
+    
+    
+    
+    </script>
+</head>
+<body oncontextmenu="return false" onselectstart="return false" oncopy="return false">
+     <video src="xiamu.mp4" class="bjimg" autoplay loop muted></video>
+    <div>
+        <link rel="stylesheet" href="./css/bootstrap.min.css">
+        <div>
+            <div class="welcome-area">
+                <div class="header-text">
+                    <div class="container">
+                        <div class="row">
+                            <div class="offset-xl-3 col-xl-6 offset-lg-2 col-lg-8 col-md-12 col-sm-12">
+                                <h1>
+                                    Elaine Young 
+                                     <br>
+                                    <strong>Art Exhibition</strong>
+                                    <br>
+                                   
+
+                                  
+                                </h1>
+                                <p style="width: 504px; height:50px;text-align: center;">
+                                     Quarantinzeit  Museum , No.21 Life Avenue  &ensp;&ensp;  Sun &ensp;22 May&ensp; 2022
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+            </div>
+            <section class="section home-feature">
+                <div class="container">
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <div class="row">
+                               <div data-scroll-reveal="enter bottom move 50px over 0.6s after 0.2s" class="col-lg-4 col-md-6 col-sm-6 col-12" data-scroll-reveal-id="1" data-scroll-reveal-initialized="true" data-scroll-reveal-complete="true">
+                               </div>
+                               <div data-scroll-reveal="enter bottom move 50px over 0.6s after 0.4s" class="col-lg-4 col-md-6 col-sm-6 col-12" data-scroll-reveal-id="2" data-scroll-reveal-initialized="true" data-scroll-reveal-complete="true">
+                               </div>
+                               <div data-scroll-reveal="enter bottom move 50px over 0.6s after 0.6s" class="col-lg-4 col-md-6 col-sm-6 col-12" data-scroll-reveal-id="3" data-scroll-reveal-initialized="true" data-scroll-reveal-complete="true">
+                               </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section id="features" class="section padding-top-70 padding-bottom-0">
+                <div class="container">
+                    <div class="row">
+                        <div data-scroll-reveal="enter left move 30px over 0.6s after 0.4s" class="col-lg-5 col-md-12 col-sm-12 align-self-center" data-scroll-reveal-id="4" data-scroll-reveal-initialized="true" data-scroll-reveal-complete="true">
+                            <img src="p/pro1.png" alt="App" class="rounded img-fluid d-block mx-auto">
+                        </div>
+                        <div class="col-lg-1"></div>
+                        <div class="col-lg-6 col-md-12 col-sm-12 align-self-center mobile-top-fix">
+                            <div class="left-heading">
+                                <h2 class="section-title">艺 术 家 简 介</h2>
+                            </div>
+                            <div class="left-text">
+                                <p>Elaine Young女士是当代著名艺术家，擅于使自身入画，亲自诠释人物与色彩、周围环境的关系，表现画中人物的独特魅力。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row"><div class="col-lg-12">
+                        <div class="hr"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <section class="section padding-bottom-100">
+            <div class="container"><div class="row">
+                <div class="col-lg-6 col-md-12 col-sm-12 align-self-center mobile-bottom-fix">
+                    <div class="left-heading">
+                        <h2 class="section-title">展 览 简 介</h2>
+                    </div>
+                    <div class="left-text">
+                        <p>“色彩是看得见的声音。” 色彩与图画在运用恰当的时候似乎有某种比现代音视频技术更加生动、有穿透力的传递情感的能力。恰逢杨女士执笔21年之际，本次画展将展出2020年至今杨女士的部分画作。本次展览将展出部分互动性画作，希望增添您观赏的趣味性。</p>
+                    </div>
+                </div>
+                <div class="col-lg-1"></div><div data-scroll-reveal="enter right move 30px over 0.6s after 0.4s" class="col-lg-5 col-md-12 col-sm-12 align-self-center mobile-bottom-fix-big" data-scroll-reveal-id="5" data-scroll-reveal-initialized="true" data-scroll-reveal-complete="true">
+                    <img src="p/pro2.png" alt="App" class="rounded img-fluid d-block mx-auto">
+                </div>
+            </div>
+        </div>
+    </section>
+    <section data-block-type="contents" data-id="5" class="fdb-block pb-0">
+        <div class="container"><div class="row align-items-center">
+            <div class="col-12 col-md-7 col-lg-5 ml-md-auto">
+                <h1>Chapter 1 · 澄澈</h1>
+                <p class="text-h3"style="font-size: 24px;">那天，天空和湖水是同样的颜色。</p>
+            </div>
+            <div class="col-10 col-sm-6 col-md-5 col-lg-4 m-auto pt-5 pt-md-0">
+                <img alt="image" src="p/a1.png" class="img-fluid br-0">
+            </div>
+        </div>
+    </div>
+</section>
+<section data-block-type="contents" data-id="2" class="fdb-block">
+    <div class="container"><div class="row">
+        <div class="col text-center">
+            <h1>活泼 · 广阔 · 自由</h1>
+        </div>
+    </div>
+    <div class="row pt-4">
+          <div class="listitem fl">
+        <img class="listitemimage" src="p/a2.png">
+
+      </div>
+  <div class="listitem fl">
+        <img class="listitemimage" src="p/a3.png">
+
+      </div>
+  <div class="listitem fl">
+        <img class="listitemimage" src="p/a4.png">
+
+      </div>
+    </div>
+</div>
+</section>
+<!-- 第一章拼图 -->
+<section data-block-type="contents" data-id="1" draggable="true" class="fdb-block">
+    <div class="container">
+        <div class="row"><div class="col-12">
+            <div class="row justify-content-center pb-5">
+                <div class="col-12 col-lg-8 text-center">
+                    <h1 id="ib1jdh">Chapter 1 隐藏作品: 风来</h1></div>
+                    <p class="text-h3" style="width: 1026px;height: 34px;">热烈的颜色突出在冷色调里，是谁手中拿着风？</p>
+                     <p class="text-h3" style="width: 1026px;height: 24px;">注：双击拼图块可旋转</p>
+                </div>
+                <a href="../拼图源码/JigsawPuzzle.html" target="_blank"><img alt="image" src="p/a5p0.png" class="img-fluid"style="width: 1110px;height: 832.5px;"></a>
+                </div>
+                <div class="col-12">
+                    <div class="row justify-content-center pb-5">
+                        <div class="col-12 col-lg-8 text-center">
+                            <p class="text-h3" style="width: 1026px;height: 24px;"> </p>
+                             <p class="text-h3" style="width: 1026px;height: 24px;"> </p>
+                            <h1 id="imi3l1">Chapter 2 · 梦幻</h1>
+                        </div>
+                    </div>
+                    <img alt="image" src="p/b1.png" class="img-fluid"style="width: 1110px;height: 832.5px;">>
+                </div>
+            </div>
+        </div>
+        <link href="https://cdn.bootcss.com/bootstrap/4.1.0/css/bootstrap.min.css" rel="stylesheet">
+        <section data-block-type="contents" data-id="2" draggable="true" class="fdb-block">
+            <div class="container">
+                <div class="row text-center"><div class="col-12">
+                    <h1 id="izvd1a">紫色的</h1>
+                    <p class="text-h2" style="font-size:20px ;">别人是如何认为她的呢？理智、冷静、温暖的蓝色吗？加一些激情的红色是否就调成了紫色呢？
+                    
+                </p>
+            </div>
+        </div>
+        <div class="row text-center pt-3 pt-xl-5">
+              <div class="listitem0 fl">
+        <img class="listitemimage" src="p/b2.png">
+
+      </div>
+              <div class="listitem0 fl">
+        <img class="listitemimage" src="p/b3.png">
+
+      </div>
+        </div>
+    </div>
+    <link href="https://cdn.bootcss.com/bootstrap/4.1.0/css/bootstrap.min.css" rel="stylesheet">
+    <section data-block-type="contents" data-id="2" draggable="true" class="fdb-block"><div class="container"><div class="row text-center">
+        <div class="col-12">
+     
+            <p class="text-h2"style="font-size: 20px; ">
+                但是你很难在蓝与红之间取舍，也难以将之形容为紫色。因为它们调和起来是连续的，就像#000000到#FFFFFF的许许多多变换一样，这些画里该有的是淡粉红色、珊瑚红色、玫瑰色、草莓红、戈亚红色、紫红色、酒红紫、丁香蓝、紫蓝色、群青蓝、天青蓝、淡蓝色……但是如此命名它们，给予它们美丽的名字，是无力的，因为是无穷无尽的。
+            </p>
+        </div>
+    </div>
+    <div class="row text-center pt-3 pt-xl-5">
+              <div class="listitem0 fl">
+        <img class="listitemimage" src="p/b4.png">
+
+      </div>
+              <div class="listitem0 fl">
+        <img class="listitemimage" src="p/b5.png">
+
+      </div>
+    </div>
+</div>
+<link href="https://cdn.bootcss.com/bootstrap/4.1.0/css/bootstrap.min.css" rel="stylesheet">
+<section data-block-type="contents" data-id="1" draggable="true" class="fdb-block">
+    <div class="container"><div class="row">
+        <div class="col-12">
+            <div class="row justify-content-center pb-5">
+                <div class="col-12 col-lg-8 text-center">
+                    <h1 id="ib31q2">Chapter 2 隐藏作品: 在梦幻的海洋中</h1>
+                </div>
+            </div>
+            <a href="../拼图源码/JigsawPuzzle1.html"target="_blank"><img alt="image" src="p/b6p0.jpg" class="img-fluid" style="width: 100%; height:90%;"></a>
+        </div>
+    </div>
+</div>
+</section>
+<link href="https://cdn.bootcss.com/bootstrap/4.1.0/css/bootstrap.min.css" rel="stylesheet">
+<section data-block-type="contents" data-id="4" class="fdb-block pb-0">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-10 col-sm-6 col-md-5 col-lg-4 m-auto pb-5 pb-md-0">
+                <img alt="image" src="p/c1.png" class="img-fluid br-0">
+            </div>
+            <div class="col-12 ml-md-auto col-md-7 col-lg-5 pb-5 pb-md-0">
+                <h1 id="ibq15j">Chapter 3 · 热情之夏</h1>
+                <p class="text-h3" style="font-size: 18px;">“大家”一定是一个热情的温暖的词，像夏天的深绿一样，是令人心旷神怡的。该章节的主题是欢乐的友谊和夏天。</p>
+            </div>
+        </div>
+    </div>
+</section>
+<link href="https://cdn.bootcss.com/bootstrap/4.1.0/css/bootstrap.min.css" rel="stylesheet">
+<section data-block-type="contents" data-id="1" class="fdb-block fp-active">
+    <div class="container">
+        <div class="row">
+            <div class="col text-center">
+                <p class="text-h2"style="font-size: 20px; ">
+                艺术家别出心裁地将画中人像的笑容都画为露齿笑，身着浅黄色上衣的女性与同伴们游玩，弯起眼睛，眼神坚定而温暖地直视前方，使观画人仿佛能够透过画的壁垒直接接收到她真诚又迷人的笑容。
+            </p>
+            </div>
+        </div>
+        <div class="row pt-4">
+              <div class="listitem0 fl">
+        <img class="listitemimage" src="p/c2.png">
+
+      </div>
+              <div class="listitem0 fl">
+        <img class="listitemimage" src="p/c3.png">
+
+      </div>
+        </div>
+        <div class="row pt-4"><div class="col"></div>
+    </div>
+</div>
+</section>
+<link href="https://cdn.bootcss.com/bootstrap/4.1.0/css/bootstrap.min.css" rel="stylesheet">
+<section data-block-type="contents" data-id="5" class="fdb-block pb-0">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-12 col-md-7 col-lg-5 ml-md-auto">
+                <h1 id="i09zlk">Chapter 4 · Handcraft</h1>
+                <p class="text-h3" style="font-size: 18px;">边专心地看着在手之物，边与旁边的同伴闲聊，是不是会营造出温馨、闲适的氛围呢？本章节展现了由手工、美食，以及人像所构造出的暖色调的休闲而又日常的景象。</p>
+            </div>
+            <div class="col-10 col-sm-6 col-md-5 col-lg-4 m-auto pt-5 pt-md-0">
+                <img alt="image" src="p/d1.png" class="img-fluid br-0">
+            </div>
+        </div>
+    </div>
+</section>
+</section>
+<link href="https://cdn.bootcss.com/bootstrap/4.1.0/css/bootstrap.min.css" rel="stylesheet">
+<section data-block-type="contents" data-id="1" class="fdb-block fp-active">
+    <div class="container">
+        <div class="row">
+            <div class="col text-center">
+            <h2 id="i9ohng">开动吧！</h2>
+        </div>
+    </div>
+    <div class="row pt-4">
+              <div class="listitem2 fl">
+        <img class="listitemimage" src="p/d2.png">
+
+      </div>
+              <div class="listitem2 fl">
+        <img class="listitemimage" src="p/d3.png">
+
+      </div>
+    </div>
+    <div class="row pt-4"><div class="col">
+    </div>
+</div>
+</div>
+</section>
+</section>
+<link href="https://cdn.bootcss.com/bootstrap/4.1.0/css/bootstrap.min.css" rel="stylesheet">
+<section data-block-type="contents" data-id="1" draggable="true" class="fdb-block">
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <div class="row justify-content-center pb-5">
+                    <div class="col-12 col-lg-8 text-center">
+                        <h1 id="iox6t3">Chapter 5 · 去春游吧</h1>
+                    </div>
+                </div>
+                <img alt="image" src="p/e1.png" class="img-fluid" style="height: 85%;">
+            </div>
+        </div>
+    </div>
+</section><link href="https://cdn.bootcss.com/bootstrap/4.1.0/css/bootstrap.min.css" rel="stylesheet">
+<section data-block-type="contents" data-id="2" draggable="true" class="fdb-block">
+    <div class="container">
+        <div class="row text-center">
+            <div class="col-12">
+                <p class="text-h2"></p>
+            </div>
+        </div>
+                               <div class="row text-center pt-3 pt-xl-5">
+                   <div class="col-12 col-sm-10 m-auto m-md-0 col-md-6">
+
+                       <p class="text-h3"  style="font-size: 18px; width: 540px;height: 54px;">
+                           粉色、绿色、蓝色、黄色，除了春天，还能是什么呢？
+                       </p>
+                    </div>
+                    <div class="col-12 col-sm-10 m-auto m-md-0 col-md-6 pt-5 pt-md-0">
+
+                        <p class="text-h3"  style="font-size: 18px; width: 540px;height: 54px;">撑着一把美丽阳伞的女孩在花树底下回头笑，除了春天，还能是每一天。</p>
+                    </div>
+                </div>
+        <div class="row text-center pt-3 pt-xl-5"style="height: 523px; ">
+                         <div class="listitem2 fl">
+        <img class="listitemimage" src="p/e3.png">
+                <p class="text-h3"  style="font-size: 18px; width: 540px;height: 54px;"></p>
+            </div>
+                         <div class="listitem2 fl">
+        <img class="listitemimage" src="p/e2.png">
+
+    
+                <p class="text-h3"  style="font-size: 18px; width: 540px;height: 54px;">
+                    
+                </p>
+            </div>
+        </div>
+                               <div class="row text-center pt-3 pt-xl-5">
+                   <div class="col-12 col-sm-10 m-auto m-md-0 col-md-6">
+
+                       <p class="text-h3"  style="font-size: 18px; width: 540px;height: 54px;">
+                           一棹春风一叶舟，一纶茧缕一轻钩
+                       </p>
+                    </div>
+                    <div class="col-12 col-sm-10 m-auto m-md-0 col-md-6 pt-5 pt-md-0">
+
+                        <p class="text-h3"  style="font-size: 18px; width: 540px;height: 54px;">画中人在与画外人互动，画中景色一时鲜明起来，纷纷奔涌出画框。</p>
+                    </div>
+                </div>
+        <div class="row text-center pt-3 pt-xl-5"style="height: 523px; ">
+                         <div class="listitem2 fl">
+        <img class="listitemimage" src="p/e4.png">
+                <p class="text-h3"  style="font-size: 18px; width: 540px;height: 54px;"></p>
+            </div>
+                         <div class="listitem2 fl">
+        <img class="listitemimage" src="p/e5.png">
+
+    
+                <p class="text-h3"  style="font-size: 18px; width: 540px;height: 54px;">
+                    
+                </p>
+            </div>
+        </div>
+            </div>
+        </section>
+        <link href="https://cdn.bootcss.com/bootstrap/4.1.0/css/bootstrap.min.css" rel="stylesheet">
+        <section data-block-type="contents" data-id="5" class="fdb-block pb-0">
+            <div class="container">
+                <div class="row align-items-center">
+                    <div class="col-12 col-md-7 col-lg-5 ml-md-auto">
+                        <h1 id="inpmzi">Chapter 5 隐藏作品：真是一把漂亮的伞！ </h1>
+                        <p class="text-h3"style="font-size: 18px; ">那个站在漂亮的伞下的人看着鲜艳明亮到眩目的粉色花海。</p>
+                    </div>
+                    <div class="col-10 col-sm-6 col-md-5 col-lg-4 m-auto pt-5 pt-md-0">
+                        <a href="../拼图源码/JigsawPuzzle2.html" target="_blank"><img alt="image" src="p/e6p0.png" class="img-fluid br-0"></a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </section>
+    <section data-block-type="contents" data-id="1" draggable="true" class="fdb-block" style="height:956px ;">
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    <div class="row justify-content-center pb-5">
+                        <div class="col-12 col-lg-8 text-center">
+                            <h1 id="irowti">终章：星星都会朝你涌来</h1>
+                        </div>
+                        <p id="iksizy">你的生命中有好多好多的东西，我画不出来了。那么就让星星代表一切吧。</p>
+<p id="iksizy"> 可爱的、明亮的、灿烂的、你所喜爱的事物，它遍布在你的未来，它们会朝你涌来。</p>
+                    </div>
+                    
+                    <!-- <img alt="image" src="p/pt.png" class="img-fluid" style="width: 100%; height: 97%;"> -->
+
+
+                    <canvas id="container" class="bk" width="800" height="600" style="position:absolute;margin-left: 150px;" >Your browser not support HTML5, please upgrade.</canvas>  
+                    <canvas id="board" width="800" height="600" style="position:absolute;margin-left: 150px;">Your browser not support HTML5, please upgrade.</canvas>  
+                    <svg id="svgRoot" class="svgroot" width="800" height="600" style="position:absolute;margin-left: 150px;" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"></svg>
+                    <div style="position:absolute;left:200px;top:720px;-moz-user-select:none;-webkit-user-select:none;">
+                    <label>Level setting:</label>            
+                           <input type = "radio"
+                                  name = "radSize"
+                                  id = "easyLevel"
+                                  value = "easy"
+                                  checked = "checked" />
+                           <label for = "easyLevel">Easy(3*3)</label>
+                           
+                           <input type = "radio"
+                                  name = "radSize"
+                                  id = "middleLevel"
+                                  value = "middle" />
+                           <label for = "middleLevel">Middle(4*4)</label>
+                  
+                           <input type = "radio"
+                                  name = "radSize"
+                                  id = "advanceLevel"
+                                  value = "advance" />
+                           <label for = "advanceLevel">Advance(5*5)</label>
+                    </div>
+                    <img id="BtnImgStart" onmousedown="restartGame()" style="position:absolute;left:700px;top:720px;cursor:pointer;-moz-user-select:none;-webkit-user-select:none;width: 50px; height: 25px;" src="./res/START-Button.png"></img> 
+
+
+
+                </div>
+            </div>
+        </div>
+    </section>
+    <section id="testimonials" class="section" style=" height: 660px;">
+        <div class="container">
+            <div class="row" style="height: 164px;">
+                <div class="col-lg-12">
+                    <div class="center-heading"style="height: 58px;">
+                        <h2 class="section-title" style="font-size:35px;">What do they say?</h2>
+                    </div>
+                </div>
+                <div class="offset-lg-3 col-lg-6">
+                    <div class="center-text" style="height: 104px;">
+                        
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-lg-4 col-md-6 col-sm-12">
+                    <div class="team-item">
+                        <div class="team-content">
+                            <p>郡淳是一个温柔善良，饱读诗书，聪明美丽，富有思想，有才华有气质的人哈哈哈哈，祝你生日快乐，每一天都能开开心心，每一件事都可以顺顺利利！</p>
+                            <p>——李文菁</p>
+    </div> 
+    <div class="team-info">
+        <h3 class="user-name"></h3>
+        <span></span>
+    </div>
+</div>
+</div>
+<div class="col-lg-4 col-md-6 col-sm-12">
+    <div class="team-item">
+        <div class="team-content">
+            <p>jc，祝你生日快乐！在你生日这天，俺得好好夸夸你！和你相处是一件很幸福的事情，温暖和亲切让人不由自主的想要接近你，既温柔又浪漫勇往无前～所以，无论在什么时候都要相信自己是最屌的，俺们就是你的后援团！</p>
+            <p>——姚嘉文</p>
+            <div class="team-info">
+                <h3 class="user-name"></h3>
+                <span></span>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="col-lg-4 col-md-6 col-sm-12">
+    <div class="team-item">
+        <div class="team-content">
+            <p>英语特别棒，很有自己的想法，待人和善，对自己要求严格的一位与众不同的气质美女！</p>
+            <p>——邵薇薇</p>
+    </div> 
+    <div class="team-info">
+        <h3 class="user-name"></h3>
+        <span></span>
+    </div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+</section>
+<section data-block-type="contents" data-id="6" draggable="true" class="fdb-block">
+    <div class="container">
+        <div class="row text-left align-items-center">
+            <div class="col-12 col-md-6 col-lg-4" style="width: 380px; height:181px;">
+                <h2 id="i6u58j" style="font-size :20px;">致谢</h2>
+                <p class="text-h3"style="width: 350px; height:135px;font-size :16px;">感谢杨女士为本次画展提供的精美的作品。它们风格不一、笔触不同，却都同样美好、温暖。执笔21年以来，她笔耕不辍地描绘了数不尽的精彩作品，为这个世界带来了无价的珍品。</p>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4 pt-4 pt-md-0"style="width: 380px; height:181px;">
+                <h2 style="font-size :20px;">赞助</h2>
+                <p class="text-h3"  style="width: 350px; height:135px; font-size:16px;">本次画展由杨女士的好友赵海涯举办。右图为杨女士(右1)与好友(左1)。</p>
+            </div>
+            <div class="col-12 col-md-8 m-auto m-lg-0 col-lg-4 pt-5 pt-lg-0">
+                <img alt="image" src="p/final.png" class="img-fluid">
+            </div>
+        </div>
+    </div>
+</section>
+<section id="contact-us" class="section colored" style="height: 484px;">
+    <div class="container">
+        <div class="row" style="width: 1160; height:164px;">
+            <div class="col-lg-12">
+                <div class="center-heading" style="height: 58px;">
+                    <h2 class="section-title" style="font-size: 28px;">生日快乐</h2>
+                </div>
+            </div>
+            <div class="offset-lg-3 col-lg-6" style="height: 106px;">
+                <div class="center-text">
+                    <p style="font-size: 18px;   text-align: center;">
+                        祝jc21岁生日快乐！
+                    </p>
+                                        <p style="font-size: 18px;   text-align: left;">
+                         &ensp;&ensp;&ensp;&ensp;今年真是特殊，你在酒店隔离中度过自己的21岁生日，我只能送一个线上的礼物给你啦。（这时我非常后悔没有学好html）
+                    </p>
+                                        <p style="font-size: 18px;   text-align: left;">
+                         &ensp;&ensp;&ensp;&ensp;这个网页其实是受到了别人生日时朋友圈里他们的朋友做的生日推送的启发。是怎么样的呢？像是一个个人特征描述合集。但是当我做的时候，我发现很难这样为你做一份“个人资料”。你多复杂啊，把形容词放在你身上都显得多么不合适。当我写下美好、明亮、温暖等等词的时候，也担心你会不喜欢。但是还是写了这些，意在反映你是很好的人，所以值得很多很好的词（虽然有一些非常地土味情话啦hhh）。
+                    </p>
+                                        <p style="font-size: 18px;   text-align: left;">
+                        &ensp;&ensp;&ensp;&ensp;总之，21岁是一个很好的年纪。我希望你度过更好的更精彩的未来，也期待我们能够一直这样走下去。
+                    </p>
+                                        <p style="font-size: 18px;   text-align: center;">
+                        希望你能喜欢！
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+<footer>
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-12 col-md-12 col-sm-12">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-lg-12">
+                <p class="copyright">Copyright © 2022 Junchun Birthday - Design: Haiya.</p>
+            </div>
+        </div>
+    </div></footer>
+        </div>
+    </div>
+</body>
+</html>
